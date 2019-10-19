@@ -2,13 +2,13 @@
 
 let lines = [];
 let width, height;
-let FH = 400;
+let FH = -400;
 let f;
 
 class Line {
     constructor(_startX, _startY, _endX, _endY) {
-        this.start = createVector(_startX, -_startY);
-        this.end = createVector(_endX, -_endY);
+        this.start = createVector(_startX, _startY);
+        this.end = createVector(_endX, _endY);
     }
 
     intersection(l) {
@@ -100,6 +100,160 @@ class FIS {
             point(i.x, i.y);
         });
     }
+
+    and(si1, si2) {
+        if (si2 - si1 !== 1) {
+            return;
+        }
+
+        const s1 = this.sets[si1];
+        const s2 = this.sets[si2];
+
+        return [
+            createVector(s2.x1, 0),
+            this.intersections[si1],
+            createVector(s1.x3, 0)
+        ];
+    }
+
+    or(si1, si2) {
+        if (si2 - si1 !== 1) {
+            return;
+        }
+
+        const s1 = this.sets[si1];
+        const s2 = this.sets[si2];
+        const s3 = this.sets[si2 + 1];
+
+        // return [
+        //     createVector(s1.x1, 0),
+        //     createVector(s1.x2, FH),
+        //     createVector(s1.x3, 0),
+        //     this.intersections[si1],
+        //     createVector(s2.x1, 0),
+        //     createVector(s2.x2, FH),
+        //     createVector(s2.x3, 0),
+        // ];
+
+
+        return [
+            {
+                labels: [si1.toString()],
+                vertices: [
+                    createVector(s1.x1, 0),
+                    createVector(s1.x2, FH),
+                    this.intersections[si1],
+                    createVector(s2.x1, 0),
+                ]
+
+            },
+            {
+                labels: [si2.toString()],
+                vertices: [
+                    this.intersections[si1],
+                    createVector(s2.x2, FH),
+                    this.intersections[si2],
+                    createVector(s3.x1, 0),
+                    createVector(s1.x3, 0),
+                ]
+            },
+            {
+                labels: [si1.toString(), si2.toString()],
+                vertices: [
+                    createVector(s2.x1, 0),
+                    this.intersections[si1],
+                    createVector(s1.x3, 0),
+                ]
+            },
+            {
+                labels: [si2.toString(), (si2 + 1).toString()],
+                vertices: [
+                    createVector(s3.x1, 0),
+                    this.intersections[si2],
+                    createVector(s2.x3, 0),
+                ]
+            }
+        ];
+    }
+
+    xor(si1, si2) {
+        if (si2 - si1 !== 1) {
+            return;
+        }
+
+        const s1 = this.sets[si1];
+        const s2 = this.sets[si2];
+
+        return [
+            createVector(s1.x1, 0),
+            createVector(s1.x2, FH),
+            this.intersections[si1],
+            createVector(s2.x1, 0)
+        ];
+    }
+
+    not(si, shapes) {
+        const s = this.sets[si];
+
+        for (let i = shapes.length - 1; i >= 0; i--) {
+            if (shapes[i].labels.indexOf(si.toString()) !== -1) {
+                shapes.splice(i, 1);
+            }
+        }
+
+        return shapes;
+
+        // return vertices.filter((v) => {
+        //     console.log(si, v.x, v.y, this._inside(
+        //         [v.x, v.y],
+        //         [
+        //             [s.x1, 0.0],
+        //             [s.x2, FH],
+        //             [s.x3, 0.0]
+        //         ]
+        //     ));
+        //     return true &&
+        //         // !v.equals(createVector(s.x1, 0)) &&
+        //         !v.equals(createVector(s.x2, FH)) &&
+        //         // !v.equals(createVector(s.x3, 0)) &&
+        //         !this._inside(
+        //             [v.x, v.y],
+        //             [
+        //                 [s.x1, 0.0],
+        //                 [s.x2, FH],
+        //                 [s.x3, 0.0]
+        //             ]
+        //         );
+        // });
+    }
+
+    _inside(point, vs) {
+        var x = point[0], y = point[1];
+
+        var inside = false;
+        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+            var xi = vs[i][0], yi = vs[i][1];
+            var xj = vs[j][0], yj = vs[j][1];
+
+            var intersect = ((yi > y) != (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+
+        return inside;
+    };
+
+    showOp(shapes) {
+        beginShape();
+        strokeWeight(0);
+        fill('rgba(255,0,0, 0.3)');
+        shapes.forEach(s => {
+            s.vertices.forEach(v => {
+                vertex(v.x, v.y);
+            });
+        });
+        endShape(CLOSE);
+    }
 }
 
 function drawGrid(cellSize) {
@@ -127,23 +281,26 @@ function setup() {
     height = 922;
 
     createCanvas(width, height);
-    // frameRate(2);
     f = new FIS();
     f.addSet(0.0, 200, 300);
     f.addSet(275, 325, 400);
     f.addSet(380, 470, 500);
+    f.addSet(480, 600, 650);
 }
 
 let angle = 0;
-
+let done = false
 function draw() {
-    background(220);
-    translate(20, height / 2);
-    drawGrid(50);
-
-
-    // translate(width / 2, 0);
-    // angle -= (2 * PI * 0.001);
-    // rotate(PI);
-    f.show();
+    if (!done) {
+        background(220);
+        translate(20, height / 2);
+        drawGrid(50);
+        f.show();
+        let v = f.or(0, 1)
+        // .concat(f.or(1, 2));
+        v = f.not(0, v);
+        console.log(v);
+        f.showOp(v);
+        done = true;
+    }
 }
