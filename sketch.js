@@ -2,13 +2,24 @@
 
 let lines = [];
 let width, height;
-let FH = -400;
+const FH = -180;
+let done = false
 let f;
 
+// Helpers
+
+function v(x, y) {
+    return createVector(x, y);
+}
+
+function k(...args) {
+    return args.map(a => `[${a}]`).join('|');
+}
+
 class Line {
-    constructor(_startX, _startY, _endX, _endY) {
-        this.start = createVector(_startX, _startY);
-        this.end = createVector(_endX, _endY);
+    constructor(v1, v2) {
+        this.start = v1;
+        this.end = v2;
     }
 
     intersection(l) {
@@ -47,212 +58,143 @@ class Line {
     }
 }
 
-class Set {
-    constructor(low, mid, high) {
-        this.x1 = low;
-        this.x2 = mid;
-        this.x3 = high;
+class set {
+    constructor(a, b, c) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
 
-        this.l1 = new Line(this.x1, 0, this.x2, FH);
-        this.l2 = new Line(this.x2, FH, this.x3, 0);
+        this.v1 = v(a, 0.0);
+        this.v2 = v(b, FH);
+        this.v3 = v(c, 0.0);
+
+        this.l1 = new Line(this.v1, this.v2);
+        this.l2 = new Line(this.v2, this.v3);
     }
 
     show() {
         this.l1.show();
         this.l2.show();
     }
+
 }
 
-class FIS {
-    constructor() {
-        this.sets = [];
-        this.intersections = [];
+class shape {
+    constructor(labels, vertices) {
+        this.labels = labels;
+        this.vertices = vertices;
+    }
+}
+
+class fis {
+    constructor(sets) {
+        this.sets = sets;
+        this.int = [];
+        this.sb = {};
+        this.selection = {};
+
+        for (let i = 0; i < sets.length - 1; i++) {
+            this.int.push(sets[i].l2.intersection(sets[i + 1].l1));
+        }
+
+        this._initShapeBuffer();
     }
 
-    isApplicableSet(set) {
-        if (this.sets.length === 0) {
-            return true;
+    _initShapeBuffer() {
+        this.sb[k(0)] = new shape([0], [
+            this.sets[0].v1,
+            this.sets[0].v2,
+            this.int[0],
+            this.sets[1].v1,
+            this.sets[0].v1
+        ]
+        );
+
+        const li = this.sets.length - 1;
+
+        this.sb[k(li)] = new shape([li], [
+            this.sets[li - 1].v3,
+            this.int[li - 1],
+            this.sets[li].v2,
+            this.sets[li].v3,
+            this.sets[li - 1].v3
+        ]
+        );
+
+        for (let i = 1; i < this.sets.length - 1; i++) {
+
+            this.sb[k(i - 1, i)] = new shape([i - 1, i], [
+                this.sets[i].v1,
+                this.sets[i - 1].v3,
+                this.int[i - 1],
+                this.sets[i].v1
+            ]
+            );
+
+            this.sb[k(i)] = new shape([i], [
+                this.sets[i - 1].v3,
+                this.int[i - 1],
+                this.sets[i].v2,
+                this.int[i],
+                this.sets[i + 1].v1,
+                this.sets[i + 1].v3
+            ]
+            );
+
+            this.sb[k(i, i + 1)] = new shape([i, i + 1], [
+                this.sets[i + 1].v1,
+                this.int[i],
+                this.sets[i].v3,
+                this.sets[i + 1].v1
+            ]
+            );
         }
-        const last = this.sets[this.sets.length - 1];
-        return last.x2 < set.x1 && last.x3 > set.x1 && last.x3 < set.x2;
     }
 
-    addSet(low, mid, high) {
-        const newSet = new Set(low, mid, high);
-
-        if (!this.isApplicableSet(newSet)) {
-            return;
-        }
-        this.sets.push(newSet);
-
-        if (this.sets.length !== 1) {
-            const lastSet = this.sets[this.sets.length - 2];
-            this.intersections.push(lastSet.l2.intersection(newSet.l1));
+    get(index) {
+        const result = {};
+        for (let key in this.sb) {
+            if (key.indexOf(k(index)) !== -1) {
+                result[key] = this.sb[key];
+            }
         }
 
+        return result;
+    }
+
+    not(index) {
+        return _.omitBy(this.sb, (val, key) => key.indexOf(k(index)) !== -1);
+    }
+
+    and(a, b) {
+        return _.pick(a, _.keys(b));
+    }
+
+    or(a, b) {
+        return _.assign(a, b);
     }
 
     show() {
         this.sets.forEach(s => s.show());
-        this.intersections.forEach(i => {
+        this.int.forEach(i => {
             stroke('red');
             strokeWeight(10);
             point(i.x, i.y);
         });
     }
 
-    and(si1, si2) {
-        if (si2 - si1 !== 1) {
-            return;
-        }
-
-        const s1 = this.sets[si1];
-        const s2 = this.sets[si2];
-
-        return [
-            createVector(s2.x1, 0),
-            this.intersections[si1],
-            createVector(s1.x3, 0)
-        ];
-    }
-
-    or(si1, si2) {
-        if (si2 - si1 !== 1) {
-            return;
-        }
-
-        const s1 = this.sets[si1];
-        const s2 = this.sets[si2];
-        const s3 = this.sets[si2 + 1];
-
-        // return [
-        //     createVector(s1.x1, 0),
-        //     createVector(s1.x2, FH),
-        //     createVector(s1.x3, 0),
-        //     this.intersections[si1],
-        //     createVector(s2.x1, 0),
-        //     createVector(s2.x2, FH),
-        //     createVector(s2.x3, 0),
-        // ];
-
-
-        return [
-            {
-                labels: [si1.toString()],
-                vertices: [
-                    createVector(s1.x1, 0),
-                    createVector(s1.x2, FH),
-                    this.intersections[si1],
-                    createVector(s2.x1, 0),
-                ]
-
-            },
-            {
-                labels: [si2.toString()],
-                vertices: [
-                    this.intersections[si1],
-                    createVector(s2.x2, FH),
-                    this.intersections[si2],
-                    createVector(s3.x1, 0),
-                    createVector(s1.x3, 0),
-                ]
-            },
-            {
-                labels: [si1.toString(), si2.toString()],
-                vertices: [
-                    createVector(s2.x1, 0),
-                    this.intersections[si1],
-                    createVector(s1.x3, 0),
-                ]
-            },
-            {
-                labels: [si2.toString(), (si2 + 1).toString()],
-                vertices: [
-                    createVector(s3.x1, 0),
-                    this.intersections[si2],
-                    createVector(s2.x3, 0),
-                ]
+    showSB(src) {
+        for (let key in src) {
+            beginShape();
+            strokeWeight(0);
+            fill('rgba(255,0,0, 0.3)');
+            if (src[key]) {
+                src[key].vertices.forEach(v => {
+                    vertex(v.x, v.y);
+                });
             }
-        ];
-    }
-
-    xor(si1, si2) {
-        if (si2 - si1 !== 1) {
-            return;
+            endShape();
         }
-
-        const s1 = this.sets[si1];
-        const s2 = this.sets[si2];
-
-        return [
-            createVector(s1.x1, 0),
-            createVector(s1.x2, FH),
-            this.intersections[si1],
-            createVector(s2.x1, 0)
-        ];
-    }
-
-    not(si, shapes) {
-        const s = this.sets[si];
-
-        for (let i = shapes.length - 1; i >= 0; i--) {
-            if (shapes[i].labels.indexOf(si.toString()) !== -1) {
-                shapes.splice(i, 1);
-            }
-        }
-
-        return shapes;
-
-        // return vertices.filter((v) => {
-        //     console.log(si, v.x, v.y, this._inside(
-        //         [v.x, v.y],
-        //         [
-        //             [s.x1, 0.0],
-        //             [s.x2, FH],
-        //             [s.x3, 0.0]
-        //         ]
-        //     ));
-        //     return true &&
-        //         // !v.equals(createVector(s.x1, 0)) &&
-        //         !v.equals(createVector(s.x2, FH)) &&
-        //         // !v.equals(createVector(s.x3, 0)) &&
-        //         !this._inside(
-        //             [v.x, v.y],
-        //             [
-        //                 [s.x1, 0.0],
-        //                 [s.x2, FH],
-        //                 [s.x3, 0.0]
-        //             ]
-        //         );
-        // });
-    }
-
-    _inside(point, vs) {
-        var x = point[0], y = point[1];
-
-        var inside = false;
-        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-            var xi = vs[i][0], yi = vs[i][1];
-            var xj = vs[j][0], yj = vs[j][1];
-
-            var intersect = ((yi > y) != (yj > y))
-                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-
-        return inside;
-    };
-
-    showOp(shapes) {
-        beginShape();
-        strokeWeight(0);
-        fill('rgba(255,0,0, 0.3)');
-        shapes.forEach(s => {
-            s.vertices.forEach(v => {
-                vertex(v.x, v.y);
-            });
-        });
-        endShape(CLOSE);
     }
 }
 
@@ -277,30 +219,70 @@ function drawGrid(cellSize) {
 }
 
 function setup() {
-    width = 940;
-    height = 922;
+    width = 1600;
+    height = 800;
 
     createCanvas(width, height);
-    f = new FIS();
-    f.addSet(0.0, 200, 300);
-    f.addSet(275, 325, 400);
-    f.addSet(380, 470, 500);
-    f.addSet(480, 600, 650);
+    f = new fis([
+        new set(0.0, 150, 200),
+        new set(175, 225, 300),
+        new set(270, 325, 400),
+        new set(375, 550, 570)
+    ]);
 }
 
-let angle = 0;
-let done = false
+class Pipe {
+    constructor(context = null) {
+        this.context = _.isNil(context) ? window : context;
+        this._values = [];
+        this._toPush = false;
+    }
+
+    pipe(func, ...args) {
+        if (_.isEmpty(arguments)) {
+            this._toPush = true;
+            return this;
+        }
+
+        if (this._toPush) {
+            const res = this.context[func](...args);
+            if (!_.isNil(res)) {
+                this._values.push(res);
+            }
+            this._toPush = false;
+        } else {
+            this._values = [this.context[func](...this._values, ...args)];
+        }
+
+        return this;
+    }
+
+    values() {
+        return this._values[0];
+    }
+}
+
 function draw() {
     if (!done) {
         background(220);
-        translate(20, height / 2);
+        translate(20, height * 0.75);
         drawGrid(50);
         f.show();
-        let v = f.or(0, 1)
-        // .concat(f.or(1, 2));
-        v = f.not(0, v);
-        console.log(v);
-        f.showOp(v);
+
+        const c = new Pipe(f)
+            .pipe('get', 1)
+            .pipe()
+            .pipe('get', 2)
+            .pipe('and')
+            .pipe()
+            .pipe('get', 3)
+            .pipe('or')
+            .pipe()
+            .pipe('not', 2)
+            .pipe('and')
+            .values();
+
+        f.showSB(c);
         done = true;
     }
 }
