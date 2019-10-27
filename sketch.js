@@ -4,7 +4,7 @@ let lines = [];
 let width, height;
 const FH = -180;
 let done = false
-let f;
+let f, l;
 
 // Helpers
 
@@ -175,6 +175,69 @@ class fis {
     }
 }
 
+class lv {
+    constructor(name) {
+        this.name = name;
+        this.terms = {};
+        this.fis = new fis([])
+
+        this._tokenMapping = {
+            'і': 'and',
+            'або': 'or',
+            'не': 'not',
+            'дуже': ['scale', 1.2],
+            'злегка': ['scale', 0.8]
+        }
+    }
+
+    addTerm(name, set) {
+        const ss = this.fis.sets.push(set);
+        this.terms[name] = ss - 1;
+    }
+
+    _isScalabe(token) {
+        return token === 'дуже' || token === 'злегка';
+    }
+
+    _isTerm(token) {
+        return (this.terms.hasOwnProperty(token));
+    }
+
+    applyQuery(query) {
+        const tokens = query.split(' ');
+        let state = new Pipe(this.fis);
+
+        let scaleStucker = 1;
+        for (let i = 0; i < tokens.length; i++) {
+            if (this._isScalabe(tokens[i])) {
+                const tm = this._tokenMapping[tokens[i]];
+                while(!this._isTerm(tokens[i]))  {                   
+                    scaleStucker *= tm[1];
+                    ++i;
+                }
+                state = state.pipe(tm[0], this.terms[tokens[i]], scaleStucker);
+                scaleStucker = 1;
+            }  else if (tokens[i] === 'не') {
+                const tm = this._tokenMapping[tokens[i]];
+                while(!this._isTerm(tokens[i]))  {                   
+                    ++i;
+                }
+                state = state.pipe(tm, this.terms[tokens[i]]);
+            } else if (tokens[i] === 'і') {
+                const tm = this._tokenMapping[tokens[i]];
+                while(!this._isTerm(tokens[i]))  {                   
+                    ++i;
+                }
+                
+            }
+
+        }
+
+        this.fis.show();
+        this.fis.showV(state.values());
+    }
+}
+
 function drawGrid(cellSize) {
     strokeWeight(1);
 
@@ -200,12 +263,18 @@ function setup() {
     height = 800;
 
     createCanvas(width, height);
-    f = new fis([
-        new set(0.0, 150, 200),
-        new set(175, 225, 300),
-        new set(270, 325, 400),
-        new set(375, 550, 570)
-    ]);
+    // f = new fis([
+    //     new set(0.0, 150, 200),
+    //     new set(175, 225, 300),
+    //     new set(270, 325, 400),
+    //     new set(375, 550, 570)
+    // ]);
+
+    l = new lv('test');
+    l.addTerm('холодно', new set(0.0, 150, 200));
+    l.addTerm('прохолодно', new set(175, 225, 300));
+    l.addTerm('тепло', new set(270, 325, 400));
+    l.addTerm('гаряче', new set(375, 550, 570));
 }
 
 class Pipe {
@@ -244,9 +313,9 @@ function draw() {
         background(220);
         translate(20, height * 0.75);
         drawGrid(50);
-        f.show();
+        // f.show();
 
-        const c = new Pipe(f)
+        // const c = new Pipe(f)
             // .pipe('get', 1)
             // .pipe()
             // .pipe('get', 2)
@@ -254,16 +323,19 @@ function draw() {
             // .pipe()
             // .pipe('get', 3)
             // .pipe('or')
-            .pipe('scale', 0, 0.75)
-            .pipe()
-            .pipe('scale', 1)
-            .pipe('and')
+            // .pipe('scale', 0, 0.75)
+            // .pipe()
+            // .pipe('scale', 1)
+            // .pipe('and')
             // .pipe()
             // .pipe('not', 2)
             // .pipe('and')
-            .values();
+            // .values();
 
-        f.showV(c);
+        // f.showV(c);
+
+        // l.applyQuery('злегка дуже холодно');
+        l.applyQuery('не гаряче');
 
         done = true;
     }
