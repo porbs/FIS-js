@@ -203,6 +203,14 @@ class lv {
         return (this.terms.hasOwnProperty(token));
     }
 
+    _isUnary(token) {
+        return this._isScalabe(token) || token === 'нет';
+    }
+
+    _isBinary(token) {
+        return token === 'і' || token === 'або';
+    }
+
     applyQuery(query) {
         const tokens = query.split(' ');
         let state = new Pipe(this.fis);
@@ -211,24 +219,44 @@ class lv {
         for (let i = 0; i < tokens.length; i++) {
             if (this._isScalabe(tokens[i])) {
                 const tm = this._tokenMapping[tokens[i]];
-                while(!this._isTerm(tokens[i]))  {                   
+                while(!this._isTerm(tokens[i]) || i === tokens.length)  {                   
                     scaleStucker *= tm[1];
                     ++i;
                 }
                 state = state.pipe(tm[0], this.terms[tokens[i]], scaleStucker);
                 scaleStucker = 1;
-            }  else if (tokens[i] === 'не') {
+            }  else if (tokens[i] === 'не' || i === tokens.length) {
                 const tm = this._tokenMapping[tokens[i]];
                 while(!this._isTerm(tokens[i]))  {                   
                     ++i;
                 }
                 state = state.pipe(tm, this.terms[tokens[i]]);
-            } else if (tokens[i] === 'і') {
-                const tm = this._tokenMapping[tokens[i]];
-                while(!this._isTerm(tokens[i]))  {                   
+            } else if (this._isBinary(tokens[i])) {
+                const tmp = this._tokenMapping[tokens[i]];
+
+                while(!this._isTerm(tokens[i]) || !this._isUnary(tokens[i]) || i === tokens.length) {                   
                     ++i;
                 }
-                
+
+                if (this._isTerm(tokens[i])) {
+                    state = state.pipe().pipe('get', this.terms[tokens[i]]).pipe(tmp);
+                } else {
+                    if (this._isScalabe(tokens[i])) {
+                        const tm = this._tokenMapping[tokens[i]];
+                        while(!this._isTerm(tokens[i]) || i === tokens.length)  {                   
+                            scaleStucker *= tm[1];
+                            ++i;
+                        }
+                        state = state.pipe().pipe(tm[0], this.terms[tokens[i]], scaleStucker).pipe(tmp);
+                        scaleStucker = 1;
+                    }  else if (tokens[i] === 'не') {
+                        const tm = this._tokenMapping[tokens[i]];
+                        while(!this._isTerm(tokens[i]) || i === tokens.length)  {                   
+                            ++i;
+                        }
+                        state = state.pipe().pipe(tm, this.terms[tokens[i]]).pipe(tmp);
+                    }
+                }
             }
 
         }
@@ -335,7 +363,7 @@ function draw() {
         // f.showV(c);
 
         // l.applyQuery('злегка дуже холодно');
-        l.applyQuery('не гаряче');
+        l.applyQuery('не гаряче або холодно');
 
         done = true;
     }
