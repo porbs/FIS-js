@@ -2,7 +2,7 @@
 
 let lines = [];
 let width, height;
-const FH = -180;
+let FH = -180;
 let done = false
 let f, l;
 
@@ -62,12 +62,12 @@ class shape {
         for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
             const xi = vs[i].x, yi = vs[i].y;
             const xj = vs[j].x, yj = vs[j].y;
-            
+
             const intersect = ((yi > y) != (yj > y))
                 && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
             if (intersect) inside = !inside;
         }
-        
+
         return inside;
     };
 }
@@ -138,7 +138,7 @@ class fis {
             v(s.v2.x + d2 * (1 / cv + 0.01), s.v3.y),
             v(s.v2.x - d1 * (1 / cv + 0.01), s.v1.y)
         ]);
-        
+
         const vs = {};
         for (let i = FH; i <= 0; i++) {
             for (let j = 0; j < width; j++) {
@@ -183,10 +183,14 @@ class lv {
 
         this._tokenMapping = {
             'і': 'and',
+            'та': 'and',
+            'також': 'and',
             'або': 'or',
+            'чи': 'or',
             'не': 'not',
             'дуже': ['scale', 1.2],
-            'злегка': ['scale', 0.8]
+            'злегка': ['scale', 0.8],
+            'трохи': ['scale', 0.8]
         }
     }
 
@@ -196,7 +200,8 @@ class lv {
     }
 
     _isScalabe(token) {
-        return token === 'дуже' || token === 'злегка';
+        const tm = this._tokenMapping[token];
+        return _.isArray(tm) && tm[0] === 'scale';
     }
 
     _isTerm(token) {
@@ -204,11 +209,13 @@ class lv {
     }
 
     _isUnary(token) {
-        return this._isScalabe(token) || token === 'нет';
+        const tm = this._tokenMapping[token];
+        return this._isScalabe(token) || tm === 'not';
     }
 
     _isBinary(token) {
-        return token === 'і' || token === 'або';
+        const tm = this._tokenMapping[token];
+        return tm === 'and' || tm === 'or';
     }
 
     applyQuery(query) {
@@ -218,45 +225,55 @@ class lv {
         let scaleStucker = 1;
         for (let i = 0; i < tokens.length; i++) {
             if (this._isScalabe(tokens[i])) {
+                console.log('scalable ', tokens[i]);
                 const tm = this._tokenMapping[tokens[i]];
-                while(!this._isTerm(tokens[i]) || i === tokens.length)  {                   
+                while (!this._isTerm(tokens[i]) && i <= tokens.length) {
                     scaleStucker *= tm[1];
                     ++i;
                 }
                 state = state.pipe(tm[0], this.terms[tokens[i]], scaleStucker);
                 scaleStucker = 1;
-            }  else if (tokens[i] === 'не' || i === tokens.length) {
+            } else if (this._tokenMapping[tokens[i]] === 'not') {
+                console.log('not ', tokens[i]);
                 const tm = this._tokenMapping[tokens[i]];
-                while(!this._isTerm(tokens[i]))  {                   
+                while (!this._isTerm(tokens[i]) && i <= tokens.length) {
                     ++i;
                 }
                 state = state.pipe(tm, this.terms[tokens[i]]);
             } else if (this._isBinary(tokens[i])) {
                 const tmp = this._tokenMapping[tokens[i]];
-
-                while(!this._isTerm(tokens[i]) || !this._isUnary(tokens[i]) || i === tokens.length) {                   
+                console.log('binary ', tokens[i]);
+                while (!(this._isTerm(tokens[i]) || this._isUnary(tokens[i])) && i <= tokens.length) {
                     ++i;
                 }
-
+                console.log('term or unary ', tokens[i]);
                 if (this._isTerm(tokens[i])) {
+                    console.log('binary -> term ', tokens[i]);
                     state = state.pipe().pipe('get', this.terms[tokens[i]]).pipe(tmp);
-                } else {
+                } else if (this._isUnary(tokens[i])) {
+                    console.log('binary -> unary ', tokens[i]);
                     if (this._isScalabe(tokens[i])) {
+                        console.log('binary -> scalable ', tokens[i]);
                         const tm = this._tokenMapping[tokens[i]];
-                        while(!this._isTerm(tokens[i]) || i === tokens.length)  {                   
+                        while (!this._isTerm(tokens[i]) && i <= tokens.length) {
                             scaleStucker *= tm[1];
                             ++i;
                         }
                         state = state.pipe().pipe(tm[0], this.terms[tokens[i]], scaleStucker).pipe(tmp);
                         scaleStucker = 1;
-                    }  else if (tokens[i] === 'не') {
+                    } else if (tokens[i] === 'не') {
+                        console.log('binary -> not ', tokens[i]);
                         const tm = this._tokenMapping[tokens[i]];
-                        while(!this._isTerm(tokens[i]) || i === tokens.length)  {                   
+                        while (!this._isTerm(tokens[i]) && i <= tokens.length) {
                             ++i;
                         }
+                        console.log(tm, this.terms[tokens[i]], tmp)
                         state = state.pipe().pipe(tm, this.terms[tokens[i]]).pipe(tmp);
                     }
                 }
+            } else if (this._isTerm(tokens[i])) {
+                console.log('term ', tokens[i]);
+                state = state.pipe('get', this.terms[tokens[i]]);
             }
 
         }
@@ -282,27 +299,20 @@ function drawGrid(cellSize) {
     }
     for (var y = -height; y < height; y += cellSize) {
         line(-width, y, width, y);
-        // text(y, 1, y + 12);
     }
 }
 
 function setup() {
-    width = 1600;
-    height = 800;
-
+    width = windowWidth;
+    height = windowHeight * 0.70;
+    FH = -height * 0.50;
     createCanvas(width, height);
-    // f = new fis([
-    //     new set(0.0, 150, 200),
-    //     new set(175, 225, 300),
-    //     new set(270, 325, 400),
-    //     new set(375, 550, 570)
-    // ]);
 
     l = new lv('test');
-    l.addTerm('холодно', new set(0.0, 150, 200));
-    l.addTerm('прохолодно', new set(175, 225, 300));
-    l.addTerm('тепло', new set(270, 325, 400));
-    l.addTerm('гаряче', new set(375, 550, 570));
+    // l.addTerm('холодно', new set(0.0, 150, 200));
+    // l.addTerm('прохолодно', new set(175, 225, 300));
+    // l.addTerm('тепло', new set(270, 325, 400));
+    // l.addTerm('гаряче', new set(375, 550, 570));
 }
 
 class Pipe {
@@ -337,34 +347,14 @@ class Pipe {
 }
 
 function draw() {
-    if (!done) {
-        background(220);
-        translate(20, height * 0.75);
-        drawGrid(50);
-        // f.show();
+    // if (!done) {
+    background(220);
+    translate(20, height * 0.85);
+    drawGrid(50);
 
-        // const c = new Pipe(f)
-            // .pipe('get', 1)
-            // .pipe()
-            // .pipe('get', 2)
-            // .pipe('and')
-            // .pipe()
-            // .pipe('get', 3)
-            // .pipe('or')
-            // .pipe('scale', 0, 0.75)
-            // .pipe()
-            // .pipe('scale', 1)
-            // .pipe('and')
-            // .pipe()
-            // .pipe('not', 2)
-            // .pipe('and')
-            // .values();
+    l.fis.show();
+    // l.applyQuery('не холодно та злегка прохолодно чи дуже тепло або дуже дуже гаряче');
 
-        // f.showV(c);
-
-        // l.applyQuery('злегка дуже холодно');
-        l.applyQuery('не гаряче або холодно');
-
-        done = true;
-    }
+    done = true;
+    // }
 }
