@@ -1,132 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Document</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/p5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.15/lodash.min.js"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
-    />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-    <link rel="stylesheet" href="style.css" />
-    <script src="sketch.js"></script>
-  </head>
 
-  <script>
-    function onActionClick(value) {
-      console.log(value);
-    }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>Document</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/p5.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.15/lodash.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/umbrella/3.1.0/umbrella.min.js"></script>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <script src="sketch.js"></script>
+</head>
 
-    function onAddTermClick() {
-      let name = document.getElementById("name");
-      let a = document.getElementById("a");
-      let b = document.getElementById("b");
-      let c = document.getElementById("c");
+<script>
+  function onActionClick(value) {
+    console.log('action: ', value);
+    pushToken(value);
+  }
 
-      l.addTerm(name, new set(+a.value, +b.value, +c.value));
+  function onTermClick(value) {
+    console.log('term: ', value);
+    pushToken(value);
+  }
 
-      // TODO: append term into table
+  function pushToken(value) {
+    const container = u('#query-string');
+    const text = `${container.text()} ${value}`;
+    container.text(text);
+    emitUpdate(getQuery());
+  }
 
-      name.value = "";
-      a.value = "";
-      b.value = "";
-      c.value = "";
-    }
-  </script>
+  function popToken() {
+    const container = u('#query-string');
+    const text = getQuery();
+    container.text(text.split(' ').slice(0, -1).join(' '));
+    emitUpdate(getQuery());
+  }
 
-  <body>
-    <div class="control-panel">
-      <div class="form-wrapper">
-        <div class="input-field col s6 input">
-          <input id="name" type="text" />
-          <label for="name">Name</label>
-        </div>
-        <div class="input-field col s6 input">
-          <input id="a" type="text" />
-          <label for="a">a</label>
-        </div>
-        <div class="input-field col s6 input">
-          <input id="b" type="text" />
-          <label for="b">b</label>
-        </div>
-        <div class="input-field col s6 input">
-          <input id="c" type="text" />
-          <label for="c">c</label>
-        </div>
-        <div class="add-button">
-          <a class="waves-effect waves-light btn" onclick="onAddTermClick()">
-            ADD
-          </a>
-        </div>
+  function getQuery() {
+    const container = u('#query-string');
+    return container.text();
+  }
+
+  function emitUpdate(q = '') {
+    query = q;
+    update = true;
+  }
+
+  function onAddTermClick() {
+    let name = document.getElementById("name").value;
+    let a = +document.getElementById("a").value;
+    let b = +document.getElementById("b").value;
+    let c = +document.getElementById("c").value;
+
+    l.addTerm(name, new set(a, b, c));
+    pushTerm(name);
+
+    document.getElementById("name").value = '';
+    document.getElementById("a").value = '';
+    document.getElementById("b").value = '';
+    document.getElementById("c").value = '';
+
+    emitUpdate();
+  }
+
+  function pushTerm(value) {
+    const terms = u('.terms');
+    terms.append(`
+      <a class="waves-effect waves-light btn term-button" onclick="onTermClick('${value}')">${value}</a>
+    `);
+  }
+
+  function loadDemo1() {
+    l.addTerm('холодно', new set(0, 150, 200));
+    l.addTerm('прохолодно', new set(175, 225, 300));
+    l.addTerm('тепло', new set(270, 325, 400));
+    l.addTerm('гаряче', new set(375, 550, 570));
+
+    pushTerm('холодно');
+    pushTerm('прохолодно');
+    pushTerm('тепло');
+    pushTerm('гаряче');
+
+    emitUpdate();
+  }
+</script>
+
+<body>
+  <div class="control-panel">
+    <div class="query">
+      <span id="query-string"></span>
+      <a id="backspace-button" class="waves-effect waves-light btn-small" onclick="popToken()">
+        <i class="material-icons left">backspace</i> Видалити
+      </a>
+    </div>
+
+
+    <form class="form-wrapper">
+      <div class="input-field col s6 input">
+        <input id="name" type="text" />
+        <label for="name">Ім'я</label>
+      </div>
+      <div class="input-field col s6 input">
+        <input id="a" type="text" />
+        <label for="a">a</label>
+      </div>
+      <div class="input-field col s6 input">
+        <input id="b" type="text" />
+        <label for="b">b</label>
+      </div>
+      <div class="input-field col s6 input">
+        <input id="c" type="text" />
+        <label for="c">c</label>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Actions</th>
-            <th>Terms</th>
-          </tr>
-        </thead>
+      <div class="add-button">
+        <a class="waves-effect waves-light btn" onclick="onAddTermClick()">
+          додати
+        </a>
+      </div>
 
-        <tbody>
-          <tr>
-            <td>
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('і')"
-                >і</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('та')"
-                >та</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('також')"
-                >також</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('або')"
-                >або</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('чи')"
-                >чи</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('не')"
-                >не</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('дуже')"
-                >дуже</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('злегка')"
-                >злегка</a
-              >
-              <a
-                class="waves-effect waves-light btn"
-                onclick="onActionClick('трохи')"
-                >трохи</a
-              >
-            </td>
-            <td>
-              <div class="terms"></div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </body>
+      <div class="add-button">
+        <a class="waves-effect waves-light btn" onclick="loadDemo1()">
+          Demo_1
+        </a>
+      </div>
+
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Дії</th>
+          <th>Терми</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('і')">і</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('та')">та</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('також')">також</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('або')">або</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('чи')">чи</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('не')">не</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('дуже')">дуже</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('злегка')">злегка</a>
+            <a class="waves-effect waves-light btn term-button" onclick="onActionClick('трохи')">трохи</a>
+          </td>
+          <td>
+            <div class="terms"></div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+
 </html>

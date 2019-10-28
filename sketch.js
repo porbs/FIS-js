@@ -16,6 +16,10 @@ function k(...args) {
     return args.map(a => `[${a}]`).join('|');
 }
 
+function randomColor() {
+    return color(random(255), random(255), random(255));
+}
+
 class Line {
     constructor(v1, v2) {
         this.start = v1;
@@ -75,6 +79,18 @@ class shape {
 class fis {
     constructor(sets) {
         this.sets = sets;
+        this.colors = [];
+
+        this.sets.forEach(() => {
+            this.colors.push(randomColor());
+        })
+
+    }
+
+    addSet(set) {
+        const newLength = this.sets.push(set);
+        this.colors.push(randomColor());
+        return newLength - 1;
     }
 
     and(a, b) {
@@ -154,10 +170,12 @@ class fis {
     }
 
     show() {
-        stroke(0);
-        strokeWeight(1);
+        strokeWeight(4);
         noFill();
-        this.sets.forEach(s => {
+
+
+        this.sets.forEach((s, i) => {
+            stroke(this.colors[i]);
             beginShape();
             s.shape.vertices.forEach(vtx => {
                 vertex(vtx.x, vtx.y);
@@ -179,6 +197,7 @@ class lv {
     constructor(name) {
         this.name = name;
         this.terms = {};
+        this.labels = [];
         this.fis = new fis([])
 
         this._tokenMapping = {
@@ -195,8 +214,40 @@ class lv {
     }
 
     addTerm(name, set) {
-        const ss = this.fis.sets.push(set);
-        this.terms[name] = ss - 1;
+        const ss = this.fis.addSet(set);
+        this.labels.push(name);
+        this.terms[name] = ss;
+    }
+
+    showLegend() {
+        const termsCnt = Object.keys(this.terms).length;
+        const lw = 400;
+        const lh = termsCnt * 30;
+        const lStartX = width - lw - 40;
+        const lStartY = -height + lh;
+
+
+        stroke(255);
+        fill(255);
+        rect(lStartX, lStartY, lw, lh);
+
+        for (let i = 0; i < termsCnt; i++) {
+            const c = this.fis.colors[i];
+            const lineW = 100;
+            const lineStartY = lStartY + (30 * i) + 10;
+            const lineStartX = lStartX + 10;
+
+            stroke(c);
+            strokeWeight(8);
+            line(lineStartX, lineStartY, lineStartX + lineW, lineStartY);
+
+            const labelStartX = lineStartX + lineW + 10;
+            fill(0);
+            stroke(0);
+            strokeWeight(0);
+            textSize(18);
+            text(this.labels[i], labelStartX, lineStartY + 5);
+        };
     }
 
     _isScalabe(token) {
@@ -219,9 +270,11 @@ class lv {
     }
 
     applyQuery(query) {
+        console.log('query: ', query);
         const tokens = query.split(' ');
         let state = new Pipe(this.fis);
 
+        let prevTerm = false;
         let scaleStucker = 1;
         for (let i = 0; i < tokens.length; i++) {
             if (this._isScalabe(tokens[i])) {
@@ -231,20 +284,31 @@ class lv {
                     scaleStucker *= tm[1];
                     ++i;
                 }
+                if (_.isNil(tokens[i])) {
+                    return;
+                }
                 state = state.pipe(tm[0], this.terms[tokens[i]], scaleStucker);
                 scaleStucker = 1;
+                prevTerm = false;
             } else if (this._tokenMapping[tokens[i]] === 'not') {
                 console.log('not ', tokens[i]);
                 const tm = this._tokenMapping[tokens[i]];
                 while (!this._isTerm(tokens[i]) && i <= tokens.length) {
                     ++i;
                 }
+                if (_.isNil(tokens[i])) {
+                    return;
+                }
                 state = state.pipe(tm, this.terms[tokens[i]]);
+                prevTerm = false;
             } else if (this._isBinary(tokens[i])) {
                 const tmp = this._tokenMapping[tokens[i]];
                 console.log('binary ', tokens[i]);
                 while (!(this._isTerm(tokens[i]) || this._isUnary(tokens[i])) && i <= tokens.length) {
                     ++i;
+                }
+                if (_.isNil(tokens[i])) {
+                    return;
                 }
                 console.log('term or unary ', tokens[i]);
                 if (this._isTerm(tokens[i])) {
@@ -259,6 +323,9 @@ class lv {
                             scaleStucker *= tm[1];
                             ++i;
                         }
+                        if (_.isNil(tokens[i])) {
+                            return;
+                        }
                         state = state.pipe().pipe(tm[0], this.terms[tokens[i]], scaleStucker).pipe(tmp);
                         scaleStucker = 1;
                     } else if (tokens[i] === 'не') {
@@ -267,18 +334,23 @@ class lv {
                         while (!this._isTerm(tokens[i]) && i <= tokens.length) {
                             ++i;
                         }
+                        if (_.isNil(tokens[i])) {
+                            return;
+                        }
                         console.log(tm, this.terms[tokens[i]], tmp)
                         state = state.pipe().pipe(tm, this.terms[tokens[i]]).pipe(tmp);
                     }
                 }
+                prevTerm = false;
             } else if (this._isTerm(tokens[i])) {
                 console.log('term ', tokens[i]);
-                state = state.pipe('get', this.terms[tokens[i]]);
+                if (!prevTerm) {
+                    state = state.pipe('get', this.terms[tokens[i]]);
+                }
+                prevTerm = true;
             }
-
         }
 
-        this.fis.show();
         this.fis.showV(state.values());
     }
 }
@@ -309,10 +381,6 @@ function setup() {
     createCanvas(width, height);
 
     l = new lv('test');
-    // l.addTerm('холодно', new set(0.0, 150, 200));
-    // l.addTerm('прохолодно', new set(175, 225, 300));
-    // l.addTerm('тепло', new set(270, 325, 400));
-    // l.addTerm('гаряче', new set(375, 550, 570));
 }
 
 class Pipe {
@@ -346,15 +414,16 @@ class Pipe {
     }
 }
 
+let update = true;
+let query = '';
 function draw() {
-    // if (!done) {
-    background(220);
-    translate(20, height * 0.85);
-    drawGrid(50);
-
-    l.fis.show();
-    // l.applyQuery('не холодно та злегка прохолодно чи дуже тепло або дуже дуже гаряче');
-
-    done = true;
-    // }
+    if (update) {
+        background(220);
+        translate(20, height * 0.85);
+        drawGrid(50);
+        l.fis.show();
+        l.applyQuery(query);
+        l.showLegend();
+        update = false;
+    }
 }
